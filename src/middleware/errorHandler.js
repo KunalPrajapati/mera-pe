@@ -13,7 +13,7 @@ function errorHandler(err, req, res, next) {
   }
 
   res.status(status).json({
-    error: status === 500 ? 'Server error' : 'Error',
+    status: 'error',
     message,
   });
 }

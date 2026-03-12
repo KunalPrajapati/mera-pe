@@ -22,8 +22,8 @@ function rateLimiter(req, res, next) {
   entry.count++;
   if (entry.count > maxPerWindow) {
     return res.status(429).json({
-      error: 'Too many requests',
-      message: 'Rate limit exceeded. Try again later.',
+      status: 'error',
+      message: 'Too many requests. Try again later.',
     });
   }
   next();

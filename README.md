@@ -23,10 +23,151 @@ psql -d mera_pe -f scripts/seed-assessment.sql
 npm start
 ```
 
-**API**
+---
 
-- `GET /api/limit/:userId` — get available withdrawal limit (Task 1)
-- `POST /api/withdraw` — process withdrawal (Task 2); body: `{ "userId", "amount", "idempotencyKey" }`
+## API Endpoints
+
+**Valid user for testing:** Use `userId: user-001` (seeded in DB). Any other `userId` returns **404** with `"message": "User not found"`.
+
+**Response format**
+
+- **Success:** `{ "status": "ok", "message": "...", "data": { ... } }`
+- **Error:** `{ "status": "error", "message": "..." }`
+
+---
+
+### 1. Get available withdrawal limit
+
+**`GET /api/limit/:userId`**
+
+Returns how much the user can withdraw (net earned so far, already withdrawn, remaining limit, eligibility).
+
+| Item    | Value                    |
+|---------|--------------------------|
+| Method  | `GET`                    |
+| URL     | `/api/limit/user-001`    |
+| Params  | `userId` (path) — use `user-001` to test |
+
+**Success (200)**  
+```json
+{
+  "status": "ok",
+  "message": "Available withdrawal limit fetched",
+  "data": {
+    "net_earned_so_far": 27000,
+    "total_withdrawn_this_month": 7000,
+    "available_limit": 20000,
+    "is_eligible_for_withdrawal": true
+  }
+}
+```
+
+**Error – User not found (404)**  
+```json
+{
+  "status": "error",
+  "message": "User not found"
+}
+```
+
+**Error – Missing userId (400)**  
+```json
+{
+  "status": "error",
+  "message": "userId is required"
+}
+```
+
+---
+
+### 2. Process withdrawal
+
+**`POST /api/withdraw`**
+
+Processes a withdrawal for the user. Requires `userId`, `amount`, and `idempotencyKey`. Use `userId: user-001` to test.
+
+| Item    | Value |
+|---------|--------|
+| Method  | `POST` |
+| URL     | `/api/withdraw` |
+| Body    | JSON (see below) |
+
+**Request body**
+```json
+{
+  "userId": "user-001",
+  "amount": 5000,
+  "idempotencyKey": "unique-key-123"
+}
+```
+
+**Success (200)**  
+```json
+{
+  "status": "ok",
+  "message": "Withdrawal processed",
+  "data": {
+    "withdrawalId": "uuid-here",
+    "amount": 5000,
+    "alreadyProcessed": false
+  }
+}
+```
+
+If the same `idempotencyKey` is sent again (duplicate request):  
+```json
+{
+  "status": "ok",
+  "message": "Withdrawal already processed",
+  "data": {
+    "withdrawalId": "uuid-here",
+    "amount": 5000,
+    "alreadyProcessed": true
+  }
+}
+```
+
+**Error – User not found (404)**  
+```json
+{
+  "status": "error",
+  "message": "User not found"
+}
+```
+
+**Error – Bad request (400)**  
+```json
+{
+  "status": "error",
+  "message": "userId and amount are required"
+}
+```
+*(or: "amount must be a positive number", "idempotencyKey is required (unique per logical request)")*
+
+**Error – Business rule (422)**  
+```json
+{
+  "status": "error",
+  "message": "Amount exceeds available limit (20000)"
+}
+```
+*(or: "No remaining balance to withdraw", "Withdrawal limit reached (3 per month)")*
+
+**Error – Rate limit (429)**  
+```json
+{
+  "status": "error",
+  "message": "Too many requests. Try again later."
+}
+```
+
+**Error – Server (500)**  
+```json
+{
+  "status": "error",
+  "message": "Internal server error"
+}
+```
 
 ---
 
@@ -94,19 +235,7 @@ To keep our internal ledger aligned with Razorpay:
 
 Run `scripts/init-db.sql` then `scripts/seed-assessment.sql` to get the assessment scenario (user `user-001` with two prior withdrawals).
 
----
-
-## Example requests
-
-**Get limit (Task 1)**  
-`GET /api/limit/user-001`
-
-**Process withdrawal (Task 2)**  
-`POST /api/withdraw`  
-`Content-Type: application/json`  
-`{ "userId": "user-001", "amount": 5000, "idempotencyKey": "unique-key-123" }`
-
-For the double-spend scenario: send the same `idempotencyKey` with multiple concurrent requests; only one will create a new withdrawal, the rest return the same result (already processed).
+**Example:** Use `userId: user-001` in both endpoints. For the double-spend scenario, send the same `idempotencyKey` with multiple concurrent requests; only one creates a new withdrawal, the rest return the same result with `alreadyProcessed: true`.
 
 ---
 
