@@ -41,6 +41,8 @@ async function process_withdrawal(userId, amount, idempotencyKey) {
 
   try {
     // --- Idempotency: already processed? Return existing result ---
+    await client.query('BEGIN');
+    
     const existing = await client.query(
       `SELECT id, amount, status FROM withdrawals WHERE idempotency_key = $1`,
       [idempotencyKey]
@@ -56,7 +58,6 @@ async function process_withdrawal(userId, amount, idempotencyKey) {
       };
     }
 
-    await client.query('BEGIN');
 
     const lockResult = await client.query(
       `SELECT id FROM employees WHERE id = $1 FOR UPDATE`,
